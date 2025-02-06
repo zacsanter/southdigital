@@ -809,17 +809,24 @@ function initPaginationScrollMobile() {
   const slidertopEl = document.getElementById('slidertop');
   if (!slidertopEl) return;
 
+  // Only run on mobile devices (<= 767px)
   if (window.innerWidth <= 767) {
+    // We'll attach the same smooth-scroll behavior to both prev/next
     function scrollToSliderTop() {
       slidertopEl.scrollIntoView({ behavior: 'smooth' });
     }
+
+    // Grab current .w-pagination-previous and .w-pagination-next links
     const prevButtons = slidertopEl.querySelectorAll('.w-pagination-previous');
     const nextButtons = slidertopEl.querySelectorAll('.w-pagination-next');
 
-    prevButtons.forEach(function(btn) {
+    // Attach the scroll event to each one
+    prevButtons.forEach((btn) => {
+      btn.removeEventListener('click', scrollToSliderTop); // remove any duplicates
       btn.addEventListener('click', scrollToSliderTop);
     });
-    nextButtons.forEach(function(btn) {
+    nextButtons.forEach((btn) => {
+      btn.removeEventListener('click', scrollToSliderTop); // remove any duplicates
       btn.addEventListener('click', scrollToSliderTop);
     });
   }
@@ -850,6 +857,7 @@ document.addEventListener("DOMContentLoaded", function() {
       setTimeout(() => {
         initBrowser3DEffects();
         initLoadMoreTestimonials();
+        initPaginationScrollMobile(); 
       }, 50);
     }
   });
