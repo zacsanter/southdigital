@@ -240,24 +240,48 @@ function initLoadMoreTestimonials() {
 }
 
 // -------------------------
-// Helper: Get UTM + FB params
+// Helper: getUrlParam + getCookie + cloneFormData
 // -------------------------
 function getUrlParam(param) {
   const urlParams = new URLSearchParams(window.location.search);
   return urlParams.get(param) || "";
 }
 
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+function cloneFormData(original) {
+  const copy = new FormData();
+  for (const [key, value] of original.entries()) {
+    copy.append(key, value);
+  }
+  return copy;
+}
+
+// -------------------------
+// 1) appendTrackingParams()
+// -------------------------
 function appendTrackingParams(formData) {
   // 1) UTM parameters from URL
-  formData.set("utm_source",   getUrlParam("utm_source"));
-  formData.set("utm_campaign", getUrlParam("utm_campaign"));
-  formData.set("utm_content",  getUrlParam("utm_content"));
-  formData.set("utm_medium",   getUrlParam("utm_medium"));
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get("utm_source")) {
+    formData.set("utm_source", urlParams.get("utm_source"));
+  }
+  if (urlParams.get("utm_campaign")) {
+    formData.set("utm_campaign", urlParams.get("utm_campaign"));
+  }
+  if (urlParams.get("utm_content")) {
+    formData.set("utm_content", urlParams.get("utm_content"));
+  }
+  if (urlParams.get("utm_medium")) {
+    formData.set("utm_medium", urlParams.get("utm_medium"));
+  }
 
   // 2) Facebook Click Identifier (fbclid) from URL
-  const fbclidVal = getUrlParam("fbclid");
-  if (fbclidVal) {
-    formData.set("fbclid", fbclidVal);
+  if (urlParams.get("fbclid")) {
+    formData.set("fbclid", urlParams.get("fbclid"));
   }
 
   // 3) Facebook Cookies (_fbc / _fbp), if readable
@@ -273,25 +297,9 @@ function appendTrackingParams(formData) {
   return formData;
 }
 
-// -------------------------------------
-// HELPER: getCookie + cloneFormData
-// -------------------------------------
-function getCookie(name) {
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  return match ? decodeURIComponent(match[2]) : null;
-}
-
-function cloneFormData(original) {
-  const copy = new FormData();
-  for (const [key, value] of original.entries()) {
-    copy.append(key, value);
-  }
-  return copy;
-}
-
-// ========================
-// 6) FORM: #email-form (On-Demand)
-// ========================
+// -------------------------
+// 2) On-Demand Form (#email-form)
+// -------------------------
 function initializeEmailForm() {
   const formEl = document.getElementById('email-form');
   const continueBtn = document.getElementById('continue-btn');
@@ -402,7 +410,7 @@ function initializeEmailForm() {
   // Q4: Your Email
   yourEmailInput.addEventListener('input', () => {
     const val = yourEmailInput.value.trim();
-    answers[3] = (val !== '' && isValidEmail(val));
+    answers[3] = (val !== '' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val));
     if (answers[3]) {
       toggleQuestionBlock(4, true);
     } else {
@@ -429,7 +437,7 @@ function initializeEmailForm() {
   // Q6: Website URL
   websiteInput.addEventListener('input', () => {
     const val = websiteInput.value.trim();
-    answers[5] = (val !== '' && isValidURL(val));
+    answers[5] = (val !== '' && /^(https?:\/\/)?[^\s.]+\.[^\s]{2,}(\/.*)?$/i.test(val));
     updateContinueButton();
   });
 
@@ -440,11 +448,14 @@ function initializeEmailForm() {
       console.log("Not all answered, can't continue");
       return;
     }
-    if (!isValidURL(websiteInput.value) || !isValidEmail(yourEmailInput.value)) {
+    // Double-check valid email + URL
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(yourEmailInput.value.trim()) ||
+        !/^(https?:\/\/)?[^\s.]+\.[^\s]{2,}(\/.*)?$/i.test(websiteInput.value.trim())) {
       alert("Please ensure both your email and website URL are valid.");
       return;
     }
 
+    // Build formData from the form
     const formData = new FormData(formEl);
 
     // Collect services checked
@@ -473,7 +484,19 @@ function initializeEmailForm() {
       fetch(makeWebhookURL, { method: "POST", body: formDataForMake })
     ])
     .then(() => {
-      window.location.href = "/book/on-demand";
+      // AFTER the webhook calls succeed, build a redirect URL
+      // passing name, email, company, plus existing query params
+      const queryParams = new URLSearchParams(window.location.search);
+
+      // Add the name/email/company from the form inputs
+      queryParams.set("name", yourNameInput.value.trim());
+      queryParams.set("email", yourEmailInput.value.trim());
+      queryParams.set("company", companyInput.value.trim());
+
+      // Build final URL
+      // e.g. /book/on-demand?name=John&email=John@x.com&company=Acme&utm_source=...
+      const finalUrl = "/book/on-demand?" + queryParams.toString();
+      window.location.href = finalUrl;
     })
     .catch(err => {
       console.error("Error sending data:", err);
@@ -520,7 +543,7 @@ function initializeEmailForm() {
     }
 
     const emailVal = yourEmailInput.value.trim();
-    const emailValid = isValidEmail(emailVal);
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal);
     answers[3] = (emailVal !== '' && emailValid);
     toggleQuestionBlock(4, answers[3]);
     if (!answers[3]) {
@@ -533,7 +556,7 @@ function initializeEmailForm() {
 
     const companyFilled = (companyInput.value.trim() !== '');
     answers[4] = companyFilled;
-    toggleQuestionBlock(5, companyFilled);
+    toggleQuestionBlock(5, answers[4]);
     if (!companyFilled) {
       answers[5] = false;
       updateContinueButton();
@@ -541,13 +564,14 @@ function initializeEmailForm() {
     }
 
     const websiteVal = websiteInput.value.trim();
-    answers[5] = (websiteVal !== '' && isValidURL(websiteVal));
+    answers[5] = (websiteVal !== '' && /^(https?:\/\/)?[^\s.]+\.[^\s]{2,}(\/.*)?$/i.test(websiteVal));
     updateContinueButton();
   })();
 }
-/* ========================
- * 7) FORM: #newbuild-form (New Build)
- * ======================== */
+
+// -------------------------
+// 3) New Build Form (#newbuild-form)
+// -------------------------
 function initializeNewbuildForm() {
   const formEl = document.getElementById('newbuild-form');
   const continueBtn = document.getElementById('continue-btn-newbuild');
@@ -574,7 +598,6 @@ function initializeNewbuildForm() {
     return;
   }
 
-  // This tracks which questions are answered
   const answers = Array(questionBlocks.length).fill(false);
 
   function allAnswered() {
@@ -682,7 +705,7 @@ function initializeNewbuildForm() {
   // Q5: Email
   emailInput.addEventListener('input', () => {
     const val = emailInput.value.trim();
-    answers[4] = (val !== '' && isValidEmail(val));
+    answers[4] = (val !== '' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val));
     toggleQuestionBlock(5, answers[4]);
     if (!answers[4]) {
       answers[5] = false;
@@ -705,7 +728,10 @@ function initializeNewbuildForm() {
 
   // Q7: Website
   websiteInput.addEventListener('input', () => {
-    answers[6] = isEmptyOrValidURL(websiteInput.value);
+    answers[6] = (
+      !websiteInput.value.trim() ||
+      /^(https?:\/\/)?[^\s.]+\.[^\s]{2,}(\/.*)?$/i.test(websiteInput.value.trim())
+    );
     updateContinueButton();
   });
 
@@ -716,8 +742,10 @@ function initializeNewbuildForm() {
       console.log("Not all answered, can't continue");
       return;
     }
-    if (!isEmptyOrValidURL(websiteInput.value) || !isValidEmail(emailInput.value)) {
-      alert("Please ensure both your email and website URL are valid.");
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput.value.trim()) ||
+        (!isEmpty(websiteInput.value.trim()) && !/^(https?:\/\/)?[^\s.]+\.[^\s]{2,}(\/.*)?$/i.test(websiteInput.value.trim()))) {
+      alert("Please ensure both your email and website URL are valid (or leave the website blank).");
       return;
     }
 
@@ -735,14 +763,14 @@ function initializeNewbuildForm() {
     const joined = selectedLabels.join(', ');
     formData.set('Purpose-of-Website', joined);
 
-    // [NEW] Append all UTM + FB stuff
+    // Append UTM + FB
     appendTrackingParams(formData);
 
-    // Because FormData can only be consumed once, clone it for multiple fetches
+    // Clone for multiple fetches
     const formDataForCRM = cloneFormData(formData);
     const formDataForMake = cloneFormData(formData);
 
-    // Webhooks for New Build form
+    // Webhooks
     const leadConnectorURL = "https://services.leadconnectorhq.com/hooks/ebN44ZZDqKXacptD3Rm7/webhook-trigger/BiZAvMuK6VH4yzD3zjBQ";
     const makeWebhookURL = "https://hook.eu2.make.com/l70awej7ur2hckn9nr1hk07dsbxp7ebk";
 
@@ -751,14 +779,26 @@ function initializeNewbuildForm() {
       fetch(makeWebhookURL, { method: "POST", body: formDataForMake })
     ])
     .then(() => {
-      // Redirect after both succeed
-      window.location.href = "book/new-build";
+      // Build redirect with name, email, company, plus existing query
+      const queryParams = new URLSearchParams(window.location.search);
+      queryParams.set("name",  nameInput.value.trim());
+      queryParams.set("email", emailInput.value.trim());
+      queryParams.set("company", companyInput.value.trim());
+
+      // e.g. "book/new-build?name=John&email=john@x.com&company=Acme&utm_source=..."
+      const finalUrl = "book/new-build?" + queryParams.toString();
+      window.location.href = finalUrl;
     })
     .catch(err => {
       console.error("Error sending data:", err);
       alert("Error submitting form. Please try again later.");
     });
   });
+
+  // Helper for optional website
+  function isEmpty(str) {
+    return !str || str.trim() === "";
+  }
 
   // Validate on page load
   (function validateOnLoad() {
@@ -807,7 +847,7 @@ function initializeNewbuildForm() {
     }
 
     const emailVal = emailInput.value.trim();
-    const emailValid = isValidEmail(emailVal);
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal);
     answers[4] = (emailVal !== '' && emailValid);
     toggleQuestionBlock(5, answers[4]);
     if (!answers[4]) {
@@ -826,7 +866,11 @@ function initializeNewbuildForm() {
       return;
     }
 
-    answers[6] = isEmptyOrValidURL(websiteInput.value.trim());
+    const webVal = websiteInput.value.trim();
+    answers[6] = (
+      !webVal ||
+      /^(https?:\/\/)?[^\s.]+\.[^\s]{2,}(\/.*)?$/i.test(webVal)
+    );
     updateContinueButton();
   })();
 }
