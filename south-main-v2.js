@@ -1066,6 +1066,11 @@ document.addEventListener("DOMContentLoaded", function() {
  * 12) CUSTOM CURSOR
  * ======================== */
 document.addEventListener('DOMContentLoaded', () => {
+  // If the current URL starts with "https://www.south.digital/book/", skip custom cursor initialization.
+  if (window.location.href.startsWith('https://www.south.digital/book/')) {
+    return;
+  }
+
   const body = document.body;
   const cursorNormal = document.querySelector('.cursor-normal');
   const pointer = document.querySelector('.pointer');
@@ -1120,12 +1125,12 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('customCursorEnabled', 'false');
   }
 
-  // On load, see if user previously disabled
+  // On load, see if user previously disabled the custom cursor.
   const customCursorEnabled = localStorage.getItem('customCursorEnabled');
   if (customCursorEnabled === 'false') {
     disableCustomCursor();
   } else {
-    // Retrieve last known cursor position
+    // Retrieve last known cursor position.
     const storedCursorPos = sessionStorage.getItem('cursorPosition');
     if (storedCursorPos) {
       try {
@@ -1136,10 +1141,10 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Error parsing cursor position from sessionStorage:', e);
       }
     }
-    // The cursor is shown on first mousemove
+    // The cursor will be shown on first mousemove.
   }
 
-  // Mousemove => move custom cursor if enabled
+  // Mousemove => move custom cursor if enabled.
   document.addEventListener('mousemove', (e) => {
     if (localStorage.getItem('customCursorEnabled') === 'false') return;
     const x = e.clientX;
@@ -1153,11 +1158,11 @@ document.addEventListener('DOMContentLoaded', () => {
       updateCursorPosition(x, y);
     }
 
-    // Save position in sessionStorage
+    // Save position in sessionStorage.
     sessionStorage.setItem('cursorPosition', JSON.stringify({ x, y }));
   });
 
-  // Pointer-style elements
+  // Pointer-style elements.
   const pointerSelectors = `
     a, .link, .dropdown-toggle, .footer-card, .w-button, .w-nav-link,
     .dropdown-menu-option, .dropdown-menu-option-cursor, .dropdown-menu-option-cookies,
@@ -1174,7 +1179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Text-style elements
+  // Text-style elements.
   const textSelectors = `
     p, span, h1, h2, h3, h4, h5, h6, .text-container, .text-style-tagline
   `;
@@ -1189,7 +1194,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Enable/disable custom cursor with buttons
+  // Enable/disable custom cursor with buttons.
   if (cursorOn) {
     cursorOn.addEventListener('click', () => {
       enableCustomCursor(lastMouseX, lastMouseY);
@@ -1201,12 +1206,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Clear session-based cursorPosition on resize
+  // Clear session-based cursorPosition on resize.
   window.addEventListener('resize', () => {
     sessionStorage.removeItem('cursorPosition');
   });
 
-  // Detect mouse leaving window => 'cursor-outside'
+  // Detect mouse leaving window => add 'cursor-outside' class.
   window.addEventListener('mouseout', (e) => {
     if (!e.relatedTarget) {
       body.classList.add('cursor-outside');
