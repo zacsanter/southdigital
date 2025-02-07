@@ -1,6 +1,6 @@
-/* ========================
- * 1) HELPER FUNCTIONS
- * ======================== */
+// ========================
+// 1) HELPER FUNCTIONS
+// ========================
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
@@ -272,7 +272,7 @@ function cloneFormData(original) {
 }
 
 /* ========================
- * 6) FORM: #email-form
+ * 6) FORM: #email-form (On-Demand)
  * ======================== */
 function initializeEmailForm() {
   const formEl = document.getElementById('email-form');
@@ -415,9 +415,7 @@ function initializeEmailForm() {
     updateContinueButton();
   });
 
-  // -------------------------
-  //  Continue Button (submit)
-  // -------------------------
+  // Continue Button (submit)
   continueBtn.addEventListener('click', function(e) {
     e.preventDefault();
     if (!allAnswered()) {
@@ -446,40 +444,31 @@ function initializeEmailForm() {
     // Append UTM parameters
     appendUtmParams(formData);
 
-    // [NEW] Capture fbclid/fbc/fbp
+    // Capture fbclid/fbc/fbp
     const fbclid = new URLSearchParams(window.location.search).get('fbclid');
     if (fbclid) {
       formData.set('fbclid', fbclid);
     }
-
     const fbcCookie = getCookie('_fbc');
     if (fbcCookie) {
       formData.set('fbc', fbcCookie);
     }
-
-    // Send fbp if present
     const fbpCookie = getCookie('_fbp');
     if (fbpCookie) {
       formData.set('fbp', fbpCookie);
     }
 
-    // Because FormData can only be consumed once, clone it for multiple fetches:
+    // Because FormData can only be consumed once, clone it for multiple fetches
     const formDataForCRM = cloneFormData(formData);
     const formDataForMake = cloneFormData(formData);
 
-    // Send to BOTH your CRM (LeadConnector) AND Make.com in parallel
+    // Webhooks for On-Demand form
     const leadConnectorURL = "https://services.leadconnectorhq.com/hooks/ebN44ZZDqKXacptD3Rm7/webhook-trigger/46c04656-b7f5-4bc9-a90e-1d9fcbea62f8";
     const makeWebhookURL = "https://hook.eu2.make.com/wrcrlyqchfq5785rh1xyq9f696279fol";
 
     Promise.all([
-      fetch(leadConnectorURL, {
-        method: "POST",
-        body: formDataForCRM
-      }),
-      fetch(makeWebhookURL, {
-        method: "POST",
-        body: formDataForMake
-      })
+      fetch(leadConnectorURL, { method: "POST", body: formDataForCRM }),
+      fetch(makeWebhookURL, { method: "POST", body: formDataForMake })
     ])
     .then(() => {
       window.location.href = "/book/on-demand";
@@ -490,9 +479,7 @@ function initializeEmailForm() {
     });
   });
 
-  // -------------------------
-  //  Validate on page load
-  // -------------------------
+  // Validate on page load
   (function validateOnLoad() {
     const anyChecked = Array.from(checkboxes).some(x => x.checked);
     answers[0] = anyChecked;
@@ -558,6 +545,301 @@ function initializeEmailForm() {
 }
 
 /* ========================
+ * 7) FORM: #newbuild-form (New Build)
+ * ======================== */
+function initializeNewbuildForm() {
+  const formEl = document.getElementById('newbuild-form');
+  const continueBtn = document.getElementById('continue-btn-newbuild');
+  if (!formEl || !continueBtn) {
+    console.warn('New Build form or Continue button not found.');
+    return;
+  }
+
+  const questionBlocks = document.querySelectorAll('.newbuild-page .question-block');
+  const typeRadio = formEl.querySelectorAll('#nb-question-1 input[type="radio"]');
+  const purposeCheckboxes = formEl.querySelectorAll('.purpose-of-website-checkbox');
+  const timeframeRadio = formEl.querySelectorAll('#nb-question-3 input[type="radio"]');
+  const nameInput = document.getElementById('Name');
+  const emailInput = document.getElementById('Email-Address');
+  const companyInput = document.getElementById('Company-Name-2');
+  const websiteInput = document.getElementById('Website-URL-2');
+
+  if (!nameInput || !emailInput || !companyInput || !websiteInput) {
+    console.warn('One or more required inputs not found in #newbuild-form.');
+    return;
+  }
+  if (typeRadio.length === 0 || purposeCheckboxes.length === 0 || timeframeRadio.length === 0) {
+    console.warn('Radio/checkbox inputs missing for #newbuild-form.');
+    return;
+  }
+
+  const answers = Array(questionBlocks.length).fill(false);
+
+  function allAnswered() {
+    return answers.every(Boolean);
+  }
+
+  function updateContinueButton() {
+    if (allAnswered()) {
+      continueBtn.classList.remove('inactive');
+      continueBtn.style.pointerEvents = 'auto';
+    } else {
+      continueBtn.classList.add('inactive');
+      continueBtn.style.pointerEvents = 'none';
+    }
+  }
+
+  function toggleQuestionBlock(qIndex, enable) {
+    const qBlock = questionBlocks[qIndex];
+    if (!qBlock) return;
+    if (enable) {
+      qBlock.classList.remove('disabled');
+      qBlock.querySelectorAll('input, select, textarea, button, a').forEach(el => {
+        if (['INPUT','SELECT','TEXTAREA'].includes(el.tagName)) {
+          el.disabled = false;
+        } else {
+          el.removeAttribute('tabIndex');
+          el.removeAttribute('aria-disabled');
+        }
+      });
+    } else {
+      qBlock.classList.add('disabled');
+      qBlock.querySelectorAll('input, select, textarea, button, a').forEach(el => {
+        if (['INPUT','SELECT','TEXTAREA'].includes(el.tagName)) {
+          el.disabled = true;
+        } else {
+          el.setAttribute('tabIndex', '-1');
+          el.setAttribute('aria-disabled', 'true');
+        }
+      });
+    }
+  }
+
+  // Q1: Type of Website (Radio)
+  typeRadio.forEach(radio => {
+    radio.addEventListener('change', () => {
+      answers[0] = Array.from(typeRadio).some(x => x.checked);
+      if (answers[0]) {
+        toggleQuestionBlock(1, true);
+      } else {
+        for (let i = 1; i < answers.length; i++) {
+          toggleQuestionBlock(i, false);
+          answers[i] = false;
+        }
+      }
+      updateContinueButton();
+    });
+  });
+
+  // Q2: Purpose of Website (Checkboxes)
+  purposeCheckboxes.forEach(cb => {
+    cb.addEventListener('change', () => {
+      answers[1] = Array.from(purposeCheckboxes).some(x => x.checked);
+      if (answers[1]) {
+        toggleQuestionBlock(2, true);
+      } else {
+        for (let i = 2; i < answers.length; i++) {
+          toggleQuestionBlock(i, false);
+          answers[i] = false;
+        }
+      }
+      updateContinueButton();
+    });
+  });
+
+  // Q3: Timeframe (Radio)
+  timeframeRadio.forEach(radio => {
+    radio.addEventListener('change', () => {
+      answers[2] = Array.from(timeframeRadio).some(x => x.checked);
+      if (answers[2]) {
+        toggleQuestionBlock(3, true);
+      } else {
+        for (let i = 3; i < answers.length; i++) {
+          toggleQuestionBlock(i, false);
+          answers[i] = false;
+        }
+      }
+      updateContinueButton();
+    });
+  });
+
+  // Q4: Name
+  nameInput.addEventListener('input', () => {
+    answers[3] = (nameInput.value.trim() !== '');
+    toggleQuestionBlock(4, answers[3]);
+    if (!answers[3]) {
+      answers[4] = false;
+      for (let i = 5; i < answers.length; i++) {
+        toggleQuestionBlock(i, false);
+        answers[i] = false;
+      }
+    }
+    updateContinueButton();
+  });
+
+  // Q5: Email
+  emailInput.addEventListener('input', () => {
+    const val = emailInput.value.trim();
+    answers[4] = (val !== '' && isValidEmail(val));
+    toggleQuestionBlock(5, answers[4]);
+    if (!answers[4]) {
+      answers[5] = false;
+      toggleQuestionBlock(6, false);
+      answers[6] = false;
+    }
+    updateContinueButton();
+  });
+
+  // Q6: Company
+  companyInput.addEventListener('input', () => {
+    const val = companyInput.value.trim();
+    answers[5] = (val !== '');
+    toggleQuestionBlock(6, answers[5]);
+    if (!answers[5]) {
+      answers[6] = false;
+    }
+    updateContinueButton();
+  });
+
+  // Q7: Website
+  websiteInput.addEventListener('input', () => {
+    answers[6] = isEmptyOrValidURL(websiteInput.value);
+    updateContinueButton();
+  });
+
+  // Continue Button
+  continueBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    if (!allAnswered()) {
+      console.log("Not all answered, can't continue");
+      return;
+    }
+    if (!isEmptyOrValidURL(websiteInput.value) || !isValidEmail(emailInput.value)) {
+      alert("Please ensure both your email and website URL are valid.");
+      return;
+    }
+
+    const formData = new FormData(formEl);
+
+    // Gather Q2 checkboxes
+    const selectedLabels = [];
+    purposeCheckboxes.forEach((checkbox) => {
+      if (checkbox.checked) {
+        const labelEl = checkbox.parentNode.querySelector('.ms-pill-label');
+        selectedLabels.push(labelEl ? labelEl.textContent.trim() : 'On');
+      }
+    });
+    const joined = selectedLabels.join(', ');
+    formData.set('Purpose-of-Website', joined);
+
+    // Append UTM parameters
+    appendUtmParams(formData);
+
+    // Capture fbclid/fbc/fbp
+    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
+    if (fbclid) {
+      formData.set('fbclid', fbclid);
+    }
+    const fbcCookie = getCookie('_fbc');
+    if (fbcCookie) {
+      formData.set('fbc', fbcCookie);
+    }
+    const fbpCookie = getCookie('_fbp');
+    if (fbpCookie) {
+      formData.set('fbp', fbpCookie);
+    }
+
+    // Clone so we can send to both URLs
+    const formDataForCRM = cloneFormData(formData);
+    const formDataForMake = cloneFormData(formData);
+
+    // Webhooks for New Build form
+    const leadConnectorURL = "https://services.leadconnectorhq.com/hooks/ebN44ZZDqKXacptD3Rm7/webhook-trigger/BiZAvMuK6VH4yzD3zjBQ";
+    const makeWebhookURL = "https://hook.eu2.make.com/l70awej7ur2hckn9nr1hk07dsbxp7ebk";
+
+    Promise.all([
+      fetch(leadConnectorURL, { method: "POST", body: formDataForCRM }),
+      fetch(makeWebhookURL, { method: "POST", body: formDataForMake })
+    ])
+    .then(() => {
+      window.location.href = "book/new-build";
+    })
+    .catch(err => {
+      console.error("Error sending data:", err);
+      alert("Error submitting form. Please try again later.");
+    });
+  });
+
+  // Validate onLoad
+  (function validateOnLoad() {
+    answers[0] = Array.from(typeRadio).some(x => x.checked);
+    toggleQuestionBlock(1, answers[0]);
+    if (!answers[0]) {
+      for (let i = 1; i < answers.length; i++) {
+        toggleQuestionBlock(i, false);
+        answers[i] = false;
+      }
+      updateContinueButton();
+      return;
+    }
+
+    answers[1] = Array.from(purposeCheckboxes).some(x => x.checked);
+    toggleQuestionBlock(2, answers[1]);
+    if (!answers[1]) {
+      for (let i = 2; i < answers.length; i++) {
+        toggleQuestionBlock(i, false);
+        answers[i] = false;
+      }
+      updateContinueButton();
+      return;
+    }
+
+    answers[2] = Array.from(timeframeRadio).some(x => x.checked);
+    toggleQuestionBlock(3, answers[2]);
+    if (!answers[2]) {
+      for (let i = 3; i < answers.length; i++) {
+        toggleQuestionBlock(i, false);
+        answers[i] = false;
+      }
+      updateContinueButton();
+      return;
+    }
+
+    answers[3] = (nameInput.value.trim() !== '');
+    toggleQuestionBlock(4, answers[3]);
+    if (!answers[3]) {
+      for (let i = 4; i < answers.length; i++) {
+        toggleQuestionBlock(i, false);
+        answers[i] = false;
+      }
+      updateContinueButton();
+      return;
+    }
+
+    answers[4] = (emailInput.value.trim() !== '' && isValidEmail(emailInput.value.trim()));
+    toggleQuestionBlock(5, answers[4]);
+    if (!answers[4]) {
+      answers[5] = false;
+      toggleQuestionBlock(6, false);
+      answers[6] = false;
+      updateContinueButton();
+      return;
+    }
+
+    answers[5] = (companyInput.value.trim() !== '');
+    toggleQuestionBlock(6, answers[5]);
+    if (!answers[5]) {
+      answers[6] = false;
+      updateContinueButton();
+      return;
+    }
+
+    answers[6] = isEmptyOrValidURL(websiteInput.value.trim());
+    updateContinueButton();
+  })();
+}
+
+/* ========================
  * 8) MARQUEE (SLOW SPEED)
  * ======================== */
 function initMarquee() {
@@ -592,22 +874,19 @@ function initPaginationScrollMobile() {
 
   // Only run on mobile devices (<= 767px)
   if (window.innerWidth <= 767) {
-    // We'll attach the same smooth-scroll behavior to both prev/next
     function scrollToSliderTop() {
       slidertopEl.scrollIntoView({ behavior: 'smooth' });
     }
 
-    // Grab current .w-pagination-previous and .w-pagination-next links
     const prevButtons = slidertopEl.querySelectorAll('.w-pagination-previous');
     const nextButtons = slidertopEl.querySelectorAll('.w-pagination-next');
 
-    // Attach the scroll event to each one
     prevButtons.forEach((btn) => {
-      btn.removeEventListener('click', scrollToSliderTop); // remove any duplicates
+      btn.removeEventListener('click', scrollToSliderTop);
       btn.addEventListener('click', scrollToSliderTop);
     });
     nextButtons.forEach((btn) => {
-      btn.removeEventListener('click', scrollToSliderTop); // remove any duplicates
+      btn.removeEventListener('click', scrollToSliderTop);
       btn.addEventListener('click', scrollToSliderTop);
     });
   }
@@ -621,8 +900,8 @@ document.addEventListener("DOMContentLoaded", function() {
   initializeSwiper();
   initializeTestimonialSlider();
   initLoadMoreTestimonials();
-  initializeEmailForm();
-  initializeNewbuildForm();
+  initializeEmailForm();        // On-Demand form
+  initializeNewbuildForm();     // New Build form
   initMarquee();
   initPaginationScrollMobile();
 
@@ -638,7 +917,7 @@ document.addEventListener("DOMContentLoaded", function() {
       setTimeout(() => {
         initBrowser3DEffects();
         initLoadMoreTestimonials();
-        initPaginationScrollMobile(); 
+        initPaginationScrollMobile();
       }, 50);
     }
   });
@@ -651,21 +930,17 @@ document.addEventListener("DOMContentLoaded", function() {
 /* ========================
  * 11) GRID ANIMATION (p5.js loader)
  * ======================== */
-// Wrap the entire script in a device detection IIFE
 (function() {
-  // Check if the device is a mobile or tablet
   function isMobileOrTablet() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-           (window.innerWidth <= 1024); // Additional width check for tablets
+           (window.innerWidth <= 1024);
   }
 
-  // If it's a mobile/tablet device, skip loading p5.js and the animation script
   if (isMobileOrTablet()) {
     console.log("Mobile or tablet detected. Skipping grid animation.");
     return;
   }
 
-  // Dynamically load p5.js only if not a mobile/tablet device
   const p5Script = document.createElement('script');
   p5Script.src = "https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js";
   p5Script.onload = initializeGridAnimation;
@@ -674,18 +949,15 @@ document.addEventListener("DOMContentLoaded", function() {
   };
   document.head.appendChild(p5Script);
 
-  // Main animation initialization function
   function initializeGridAnimation() {
     console.log("p5.js loaded. Initializing grid animation.");
 
     new p5((p) => {
-      // CONSTANTS
       const CELL_SIZE = 40;
       const PROB_OF_NEIGHBOR = 0.5;
       const AMT_FADE_PER_FRAME = 5;
       const MAX_NEIGHBORS = 100;
 
-      // VARIABLES
       let colorWithAlpha;
       let numRows;
       let numCols;
@@ -707,10 +979,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
       function cacheThemeColors() {
         const rootStyles = getComputedStyle(document.documentElement);
-        // Cache light mode
         themeColorCache.light.background = rootStyles.getPropertyValue('--light--background').trim();
         themeColorCache.light.circle = rootStyles.getPropertyValue('--light--grid-color').trim();
-        // Cache dark mode
         themeColorCache.dark.background = rootStyles.getPropertyValue('--dark--background').trim();
         themeColorCache.dark.circle = rootStyles.getPropertyValue('--dark--grid-color').trim();
       }
@@ -728,7 +998,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
       p.setup = function() {
         console.log("p5.js setup initiated.");
-        // Initial color caching
         cacheThemeColors();
 
         let cnv = p.createCanvas(p.windowWidth, p.windowHeight);
@@ -744,7 +1013,6 @@ document.addEventListener("DOMContentLoaded", function() {
         p.strokeWeight(1);
         updateGridDimensions();
 
-        // Instant theme change listener
         document.addEventListener('themeChanged', () => {
           console.log("Theme changed. Updating colors.");
           cacheThemeColors();
@@ -755,7 +1023,7 @@ document.addEventListener("DOMContentLoaded", function() {
       function updateGridDimensions() {
         numRows = Math.ceil(p.windowHeight / CELL_SIZE);
         numCols = Math.ceil(p.windowWidth / CELL_SIZE);
-        console.log(`Grid dimensions updated: ${numCols} cols x ${numRows} rows`);
+        console.log(`Grid: ${numCols} cols x ${numRows} rows`);
       }
 
       p.draw = function() {
@@ -822,9 +1090,11 @@ document.addEventListener("DOMContentLoaded", function() {
         for (const [dRow, dCol] of shuffledOffsets) {
           const neighborRow = row + dRow;
           const neighborCol = col + dCol;
-          if (neighborRow >= 0 && neighborRow < numRows &&
-              neighborCol >= 0 && neighborCol < numCols &&
-              Math.random() < PROB_OF_NEIGHBOR) {
+          if (
+            neighborRow >= 0 && neighborRow < numRows &&
+            neighborCol >= 0 && neighborCol < numCols &&
+            Math.random() < PROB_OF_NEIGHBOR
+          ) {
             neighbors.push({
               row: neighborRow,
               col: neighborCol,
@@ -943,7 +1213,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sessionStorage.setItem('cursorPosition', JSON.stringify({ x, y }));
   });
 
-  // Pointer-style elements.
+  // Pointer-style elements
   const pointerSelectors = `
     a, .link, .dropdown-toggle, .footer-card, .w-button, .w-nav-link,
     .dropdown-menu-option, .dropdown-menu-option-cursor, .dropdown-menu-option-cookies,
@@ -960,7 +1230,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Text-style elements.
+  // Text-style elements
   const textSelectors = `
     p, span, h1, h2, h3, h4, h5, h6, .text-container, .text-style-tagline
   `;
@@ -975,7 +1245,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Enable/disable custom cursor with buttons.
+  // Enable/disable custom cursor with buttons
   if (cursorOn) {
     cursorOn.addEventListener('click', () => {
       enableCustomCursor(lastMouseX, lastMouseY);
@@ -987,12 +1257,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Clear session-based cursorPosition on resize.
+  // Clear session-based cursorPosition on resize
   window.addEventListener('resize', () => {
     sessionStorage.removeItem('cursorPosition');
   });
 
-  // Detect mouse leaving window => add 'cursor-outside' class.
+  // Detect mouse leaving window => add 'cursor-outside' class
   window.addEventListener('mouseout', (e) => {
     if (!e.relatedTarget) {
       body.classList.add('cursor-outside');
