@@ -240,23 +240,41 @@ function initLoadMoreTestimonials() {
 }
 
 // -------------------------
-// Helper: Get UTM Parameters
+// Helper: Get UTM + FB params
 // -------------------------
-function getUtmParam(param) {
+function getUrlParam(param) {
   const urlParams = new URLSearchParams(window.location.search);
   return urlParams.get(param) || "";
 }
 
-function appendUtmParams(formData) {
-  formData.set("utm_source", getUtmParam("utm_source"));
-  formData.set("utm_campaign", getUtmParam("utm_campaign"));
-  formData.set("utm_content", getUtmParam("utm_content"));
-  formData.set("utm_medium", getUtmParam("utm_medium"));
+function appendTrackingParams(formData) {
+  // 1) UTM parameters from URL
+  formData.set("utm_source",   getUrlParam("utm_source"));
+  formData.set("utm_campaign", getUrlParam("utm_campaign"));
+  formData.set("utm_content",  getUrlParam("utm_content"));
+  formData.set("utm_medium",   getUrlParam("utm_medium"));
+
+  // 2) Facebook Click Identifier (fbclid) from URL
+  const fbclidVal = getUrlParam("fbclid");
+  if (fbclidVal) {
+    formData.set("fbclid", fbclidVal);
+  }
+
+  // 3) Facebook Cookies (_fbc / _fbp), if readable
+  const fbcCookie = getCookie("_fbc");
+  if (fbcCookie) {
+    formData.set("fbc", fbcCookie);
+  }
+  const fbpCookie = getCookie("_fbp");
+  if (fbpCookie) {
+    formData.set("fbp", fbpCookie);
+  }
+
   return formData;
 }
 
 // -------------------------------------
-//  HELPER: getCookie + cloneFormData
+// HELPER: getCookie + cloneFormData
 // -------------------------------------
 function getCookie(name) {
   const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
@@ -271,9 +289,9 @@ function cloneFormData(original) {
   return copy;
 }
 
-/* ========================
- * 6) FORM: #email-form (On-Demand)
- * ======================== */
+// ========================
+// 6) FORM: #email-form (On-Demand)
+// ========================
 function initializeEmailForm() {
   const formEl = document.getElementById('email-form');
   const continueBtn = document.getElementById('continue-btn');
@@ -427,7 +445,6 @@ function initializeEmailForm() {
       return;
     }
 
-    // Build formData from the form
     const formData = new FormData(formEl);
 
     // Collect services checked
@@ -438,25 +455,10 @@ function initializeEmailForm() {
         selectedLabels.push(labelEl ? labelEl.textContent.trim() : 'On');
       }
     });
-    const joined = selectedLabels.join(', ');
-    formData.set('Services-Interested-In-3', joined);
+    formData.set('Services-Interested-In-3', selectedLabels.join(', '));
 
-    // Append UTM parameters
-    appendUtmParams(formData);
-
-    // Capture fbclid/fbc/fbp
-    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
-    if (fbclid) {
-      formData.set('fbclid', fbclid);
-    }
-    const fbcCookie = getCookie('_fbc');
-    if (fbcCookie) {
-      formData.set('fbc', fbcCookie);
-    }
-    const fbpCookie = getCookie('_fbp');
-    if (fbpCookie) {
-      formData.set('fbp', fbpCookie);
-    }
+    // Append UTM + FB parameters in one place
+    appendTrackingParams(formData);
 
     // Because FormData can only be consumed once, clone it for multiple fetches
     const formDataForCRM = cloneFormData(formData);
@@ -543,7 +545,6 @@ function initializeEmailForm() {
     updateContinueButton();
   })();
 }
-
 /* ========================
  * 7) FORM: #newbuild-form (New Build)
  * ======================== */
@@ -573,6 +574,7 @@ function initializeNewbuildForm() {
     return;
   }
 
+  // This tracks which questions are answered
   const answers = Array(questionBlocks.length).fill(false);
 
   function allAnswered() {
@@ -719,6 +721,7 @@ function initializeNewbuildForm() {
       return;
     }
 
+    // Create FormData from the form
     const formData = new FormData(formEl);
 
     // Gather Q2 checkboxes
@@ -732,24 +735,10 @@ function initializeNewbuildForm() {
     const joined = selectedLabels.join(', ');
     formData.set('Purpose-of-Website', joined);
 
-    // Append UTM parameters
-    appendUtmParams(formData);
+    // [NEW] Append all UTM + FB stuff
+    appendTrackingParams(formData);
 
-    // Capture fbclid/fbc/fbp
-    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
-    if (fbclid) {
-      formData.set('fbclid', fbclid);
-    }
-    const fbcCookie = getCookie('_fbc');
-    if (fbcCookie) {
-      formData.set('fbc', fbcCookie);
-    }
-    const fbpCookie = getCookie('_fbp');
-    if (fbpCookie) {
-      formData.set('fbp', fbpCookie);
-    }
-
-    // Clone so we can send to both URLs
+    // Because FormData can only be consumed once, clone it for multiple fetches
     const formDataForCRM = cloneFormData(formData);
     const formDataForMake = cloneFormData(formData);
 
@@ -762,6 +751,7 @@ function initializeNewbuildForm() {
       fetch(makeWebhookURL, { method: "POST", body: formDataForMake })
     ])
     .then(() => {
+      // Redirect after both succeed
       window.location.href = "book/new-build";
     })
     .catch(err => {
@@ -770,7 +760,7 @@ function initializeNewbuildForm() {
     });
   });
 
-  // Validate onLoad
+  // Validate on page load
   (function validateOnLoad() {
     answers[0] = Array.from(typeRadio).some(x => x.checked);
     toggleQuestionBlock(1, answers[0]);
@@ -816,7 +806,9 @@ function initializeNewbuildForm() {
       return;
     }
 
-    answers[4] = (emailInput.value.trim() !== '' && isValidEmail(emailInput.value.trim()));
+    const emailVal = emailInput.value.trim();
+    const emailValid = isValidEmail(emailVal);
+    answers[4] = (emailVal !== '' && emailValid);
     toggleQuestionBlock(5, answers[4]);
     if (!answers[4]) {
       answers[5] = false;
