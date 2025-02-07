@@ -271,9 +271,6 @@ function cloneFormData(original) {
   return copy;
 }
 
-// --------------
-//  Main Scripts
-// --------------
 /* ========================
  * 6) FORM: #email-form
  * ======================== */
@@ -298,7 +295,6 @@ function initializeEmailForm() {
     return;
   }
 
-  // We’ll capture fbclid/fbc later when sending data
   const answers = Array(questionBlocks.length).fill(false);
 
   function allAnswered() {
@@ -447,17 +443,24 @@ function initializeEmailForm() {
     const joined = selectedLabels.join(', ');
     formData.set('Services-Interested-In-3', joined);
 
-    // Append UTM parameters (already defined elsewhere)
+    // Append UTM parameters
     appendUtmParams(formData);
 
-    // [NEW] Capture fbclid from URL, or _fbc from cookie:
+    // [NEW] Capture fbclid/fbc/fbp
     const fbclid = new URLSearchParams(window.location.search).get('fbclid');
     if (fbclid) {
       formData.set('fbclid', fbclid);
     }
+
     const fbcCookie = getCookie('_fbc');
     if (fbcCookie) {
       formData.set('fbc', fbcCookie);
+    }
+
+    // Send fbp if present
+    const fbpCookie = getCookie('_fbp');
+    if (fbpCookie) {
+      formData.set('fbp', fbpCookie);
     }
 
     // Because FormData can only be consumed once, clone it for multiple fetches:
@@ -479,7 +482,6 @@ function initializeEmailForm() {
       })
     ])
     .then(() => {
-      // Redirect after both succeed
       window.location.href = "/book/on-demand";
     })
     .catch(err => {
@@ -551,304 +553,6 @@ function initializeEmailForm() {
 
     const websiteVal = websiteInput.value.trim();
     answers[5] = (websiteVal !== '' && isValidURL(websiteVal));
-    updateContinueButton();
-  })();
-}
-
-/* ========================
- * 7) FORM: #newbuild-form
- * ======================== */
-function initializeNewbuildForm() {
-  const formEl = document.getElementById('newbuild-form');
-  const continueBtn = document.getElementById('continue-btn-newbuild');
-  if (!formEl || !continueBtn) {
-    console.warn('New Build form or Continue button not found.');
-    return;
-  }
-
-  const questionBlocks = document.querySelectorAll('.newbuild-page .question-block');
-  const typeRadio = formEl.querySelectorAll('#nb-question-1 input[type="radio"]');
-  const purposeCheckboxes = formEl.querySelectorAll('.purpose-of-website-checkbox');
-  const timeframeRadio = formEl.querySelectorAll('#nb-question-3 input[type="radio"]');
-  const nameInput = document.getElementById('Name');
-  const emailInput = document.getElementById('Email-Address');
-  const companyInput = document.getElementById('Company-Name-2');
-  const websiteInput = document.getElementById('Website-URL-2');
-
-  if (!nameInput || !emailInput || !companyInput || !websiteInput) {
-    console.warn('One or more required inputs not found in #newbuild-form.');
-    return;
-  }
-  if (typeRadio.length === 0 || purposeCheckboxes.length === 0 || timeframeRadio.length === 0) {
-    console.warn('Radio/checkbox inputs missing for #newbuild-form.');
-    return;
-  }
-
-  // We'll capture fbclid/fbc in the same way as the first form
-  const answers = Array(questionBlocks.length).fill(false);
-
-  function allAnswered() {
-    return answers.every(Boolean);
-  }
-
-  function updateContinueButton() {
-    if (allAnswered()) {
-      continueBtn.classList.remove('inactive');
-      continueBtn.style.pointerEvents = 'auto';
-    } else {
-      continueBtn.classList.add('inactive');
-      continueBtn.style.pointerEvents = 'none';
-    }
-  }
-
-  function toggleQuestionBlock(qIndex, enable) {
-    const qBlock = questionBlocks[qIndex];
-    if (!qBlock) return;
-    if (enable) {
-      qBlock.classList.remove('disabled');
-      qBlock.querySelectorAll('input, select, textarea, button, a').forEach(el => {
-        if (['INPUT','SELECT','TEXTAREA'].includes(el.tagName)) {
-          el.disabled = false;
-        } else {
-          el.removeAttribute('tabIndex');
-          el.removeAttribute('aria-disabled');
-        }
-      });
-    } else {
-      qBlock.classList.add('disabled');
-      qBlock.querySelectorAll('input, select, textarea, button, a').forEach(el => {
-        if (['INPUT','SELECT','TEXTAREA'].includes(el.tagName)) {
-          el.disabled = true;
-        } else {
-          el.setAttribute('tabIndex', '-1');
-          el.setAttribute('aria-disabled', 'true');
-        }
-      });
-    }
-  }
-
-  // Q1: Type of Website (Radio)
-  typeRadio.forEach(radio => {
-    radio.addEventListener('change', () => {
-      answers[0] = Array.from(typeRadio).some(x => x.checked);
-      if (answers[0]) {
-        toggleQuestionBlock(1, true);
-      } else {
-        for (let i = 1; i < answers.length; i++) {
-          toggleQuestionBlock(i, false);
-          answers[i] = false;
-        }
-      }
-      updateContinueButton();
-    });
-  });
-
-  // Q2: Purpose of Website (Checkboxes)
-  purposeCheckboxes.forEach(cb => {
-    cb.addEventListener('change', () => {
-      answers[1] = Array.from(purposeCheckboxes).some(x => x.checked);
-      if (answers[1]) {
-        toggleQuestionBlock(2, true);
-      } else {
-        for (let i = 2; i < answers.length; i++) {
-          toggleQuestionBlock(i, false);
-          answers[i] = false;
-        }
-      }
-      updateContinueButton();
-    });
-  });
-
-  // Q3: Timeframe (Radio)
-  timeframeRadio.forEach(radio => {
-    radio.addEventListener('change', () => {
-      answers[2] = Array.from(timeframeRadio).some(x => x.checked);
-      if (answers[2]) {
-        toggleQuestionBlock(3, true);
-      } else {
-        for (let i = 3; i < answers.length; i++) {
-          toggleQuestionBlock(i, false);
-          answers[i] = false;
-        }
-      }
-      updateContinueButton();
-    });
-  });
-
-  // Q4: Name
-  nameInput.addEventListener('input', () => {
-    answers[3] = (nameInput.value.trim() !== '');
-    toggleQuestionBlock(4, answers[3]);
-    if (!answers[3]) {
-      answers[4] = false;
-      for (let i = 5; i < answers.length; i++) {
-        toggleQuestionBlock(i, false);
-        answers[i] = false;
-      }
-    }
-    updateContinueButton();
-  });
-
-  // Q5: Email
-  emailInput.addEventListener('input', () => {
-    const val = emailInput.value.trim();
-    answers[4] = (val !== '' && isValidEmail(val));
-    toggleQuestionBlock(5, answers[4]);
-    if (!answers[4]) {
-      answers[5] = false;
-      toggleQuestionBlock(6, false);
-      answers[6] = false;
-    }
-    updateContinueButton();
-  });
-
-  // Q6: Company
-  companyInput.addEventListener('input', () => {
-    const val = companyInput.value.trim();
-    answers[5] = (val !== '');
-    toggleQuestionBlock(6, answers[5]);
-    if (!answers[5]) {
-      answers[6] = false;
-    }
-    updateContinueButton();
-  });
-
-  // Q7: Website
-  websiteInput.addEventListener('input', () => {
-    answers[6] = isEmptyOrValidURL(websiteInput.value);
-    updateContinueButton();
-  });
-
-  // Continue Button
-  continueBtn.addEventListener('click', function(e) {
-    e.preventDefault();
-    if (!allAnswered()) {
-      console.log("Not all answered, can't continue");
-      return;
-    }
-    if (!isEmptyOrValidURL(websiteInput.value) || !isValidEmail(emailInput.value)) {
-      alert("Please ensure both your email and website URL are valid.");
-      return;
-    }
-
-    const formData = new FormData(formEl);
-
-    // Gather Q2 checkboxes
-    const selectedLabels = [];
-    purposeCheckboxes.forEach((checkbox) => {
-      if (checkbox.checked) {
-        const labelEl = checkbox.parentNode.querySelector('.ms-pill-label');
-        selectedLabels.push(labelEl ? labelEl.textContent.trim() : 'On');
-      }
-    });
-    const joined = selectedLabels.join(', ');
-    formData.set('Purpose-of-Website', joined);
-
-    // Append UTM parameters (if needed)
-    appendUtmParams(formData);
-
-    // [NEW] Capture fbclid/fbc
-    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
-    if (fbclid) {
-      formData.set('fbclid', fbclid);
-    }
-    const fbcCookie = getCookie('_fbc');
-    if (fbcCookie) {
-      formData.set('fbc', fbcCookie);
-    }
-
-    // Clone so we can send to both URLs
-    const formDataForCRM = cloneFormData(formData);
-    const formDataForMake = cloneFormData(formData);
-
-    // Send to your CRM and to Make.com in parallel
-    const leadConnectorURL = "https://services.leadconnectorhq.com/hooks/ebN44ZZDqKXacptD3Rm7/webhook-trigger/BiZAvMuK6VH4yzD3zjBQ";
-    const makeWebhookURL = "https://hook.eu2.make.com/l70awej7ur2hckn9nr1hk07dsbxp7ebk";
-
-    Promise.all([
-      fetch(leadConnectorURL, {
-        method: "POST",
-        body: formDataForCRM
-      }),
-      fetch(makeWebhookURL, {
-        method: "POST",
-        body: formDataForMake
-      })
-    ])
-    .then(() => {
-      window.location.href = "book/new-build";
-    })
-    .catch(err => {
-      console.error("Error sending data:", err);
-      alert("Error submitting form. Please try again later.");
-    });
-  });
-
-  // Validate onLoad
-  (function validateOnLoad() {
-    answers[0] = Array.from(typeRadio).some(x => x.checked);
-    toggleQuestionBlock(1, answers[0]);
-    if (!answers[0]) {
-      for (let i = 1; i < answers.length; i++) {
-        toggleQuestionBlock(i, false);
-        answers[i] = false;
-      }
-      updateContinueButton();
-      return;
-    }
-
-    answers[1] = Array.from(purposeCheckboxes).some(x => x.checked);
-    toggleQuestionBlock(2, answers[1]);
-    if (!answers[1]) {
-      for (let i = 2; i < answers.length; i++) {
-        toggleQuestionBlock(i, false);
-        answers[i] = false;
-      }
-      updateContinueButton();
-      return;
-    }
-
-    answers[2] = Array.from(timeframeRadio).some(x => x.checked);
-    toggleQuestionBlock(3, answers[2]);
-    if (!answers[2]) {
-      for (let i = 3; i < answers.length; i++) {
-        toggleQuestionBlock(i, false);
-        answers[i] = false;
-      }
-      updateContinueButton();
-      return;
-    }
-
-    answers[3] = (nameInput.value.trim() !== '');
-    toggleQuestionBlock(4, answers[3]);
-    if (!answers[3]) {
-      for (let i = 4; i < answers.length; i++) {
-        toggleQuestionBlock(i, false);
-        answers[i] = false;
-      }
-      updateContinueButton();
-      return;
-    }
-
-    answers[4] = (emailInput.value.trim() !== '' && isValidEmail(emailInput.value.trim()));
-    toggleQuestionBlock(5, answers[4]);
-    if (!answers[4]) {
-      answers[5] = false;
-      toggleQuestionBlock(6, false);
-      answers[6] = false;
-      updateContinueButton();
-      return;
-    }
-
-    answers[5] = (companyInput.value.trim() !== '');
-    toggleQuestionBlock(6, answers[5]);
-    if (!answers[5]) {
-      answers[6] = false;
-      updateContinueButton();
-      return;
-    }
-
-    answers[6] = isEmptyOrValidURL(websiteInput.value.trim());
     updateContinueButton();
   })();
 }
