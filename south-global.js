@@ -772,7 +772,7 @@ function initializeNewbuildForm() {
 
     // Webhooks
     const leadConnectorURL = "https://services.leadconnectorhq.com/hooks/ebN44ZZDqKXacptD3Rm7/webhook-trigger/BiZAvMuK6VH4yzD3zjBQ";
-    const makeWebhookURL = "https://hook.eu2.make.com/l70awej7ur2hckn9nr1hk07dsbxp7ebk";
+    const makeWebhookURL = "https://hook.eu2.make.com/wrcrlyqchfq5785rh1xyq9f696279fol";
 
     Promise.all([
       fetch(leadConnectorURL, { method: "POST", body: formDataForCRM }),
