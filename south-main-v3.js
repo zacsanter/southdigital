@@ -255,6 +255,25 @@ function appendUtmParams(formData) {
   return formData;
 }
 
+// -------------------------------------
+//  HELPER: getCookie + cloneFormData
+// -------------------------------------
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+function cloneFormData(original) {
+  const copy = new FormData();
+  for (const [key, value] of original.entries()) {
+    copy.append(key, value);
+  }
+  return copy;
+}
+
+// --------------
+//  Main Scripts
+// --------------
 /* ========================
  * 6) FORM: #email-form
  * ======================== */
@@ -279,6 +298,7 @@ function initializeEmailForm() {
     return;
   }
 
+  // We’ll capture fbclid/fbc later when sending data
   const answers = Array(questionBlocks.length).fill(false);
 
   function allAnswered() {
@@ -399,7 +419,9 @@ function initializeEmailForm() {
     updateContinueButton();
   });
 
-  // Continue Button
+  // -------------------------
+  //  Continue Button (submit)
+  // -------------------------
   continueBtn.addEventListener('click', function(e) {
     e.preventDefault();
     if (!allAnswered()) {
@@ -411,7 +433,10 @@ function initializeEmailForm() {
       return;
     }
 
+    // Build formData from the form
     const formData = new FormData(formEl);
+
+    // Collect services checked
     const selectedLabels = [];
     checkboxes.forEach((checkbox) => {
       if (checkbox.checked) {
@@ -422,14 +447,39 @@ function initializeEmailForm() {
     const joined = selectedLabels.join(', ');
     formData.set('Services-Interested-In-3', joined);
 
-    // Append UTM parameters
+    // Append UTM parameters (already defined elsewhere)
     appendUtmParams(formData);
 
-    fetch("https://services.leadconnectorhq.com/hooks/ebN44ZZDqKXacptD3Rm7/webhook-trigger/46c04656-b7f5-4bc9-a90e-1d9fcbea62f8", {
-      method: "POST",
-      body: formData
-    })
+    // [NEW] Capture fbclid from URL, or _fbc from cookie:
+    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
+    if (fbclid) {
+      formData.set('fbclid', fbclid);
+    }
+    const fbcCookie = getCookie('_fbc');
+    if (fbcCookie) {
+      formData.set('fbc', fbcCookie);
+    }
+
+    // Because FormData can only be consumed once, clone it for multiple fetches:
+    const formDataForCRM = cloneFormData(formData);
+    const formDataForMake = cloneFormData(formData);
+
+    // Send to BOTH your CRM (LeadConnector) AND Make.com in parallel
+    const leadConnectorURL = "https://services.leadconnectorhq.com/hooks/ebN44ZZDqKXacptD3Rm7/webhook-trigger/46c04656-b7f5-4bc9-a90e-1d9fcbea62f8";
+    const makeWebhookURL = "https://hook.eu2.make.com/wrcrlyqchfq5785rh1xyq9f696279fol";
+
+    Promise.all([
+      fetch(leadConnectorURL, {
+        method: "POST",
+        body: formDataForCRM
+      }),
+      fetch(makeWebhookURL, {
+        method: "POST",
+        body: formDataForMake
+      })
+    ])
     .then(() => {
+      // Redirect after both succeed
       window.location.href = "/book/on-demand";
     })
     .catch(err => {
@@ -438,7 +488,9 @@ function initializeEmailForm() {
     });
   });
 
-  // Validate on load
+  // -------------------------
+  //  Validate on page load
+  // -------------------------
   (function validateOnLoad() {
     const anyChecked = Array.from(checkboxes).some(x => x.checked);
     answers[0] = anyChecked;
@@ -503,9 +555,9 @@ function initializeEmailForm() {
   })();
 }
 
-// ========================
-// 7) FORM: #newbuild-form
-// ========================
+/* ========================
+ * 7) FORM: #newbuild-form
+ * ======================== */
 function initializeNewbuildForm() {
   const formEl = document.getElementById('newbuild-form');
   const continueBtn = document.getElementById('continue-btn-newbuild');
@@ -532,6 +584,7 @@ function initializeNewbuildForm() {
     return;
   }
 
+  // We'll capture fbclid/fbc in the same way as the first form
   const answers = Array(questionBlocks.length).fill(false);
 
   function allAnswered() {
@@ -622,7 +675,7 @@ function initializeNewbuildForm() {
     });
   });
 
-  // Q4: Name (Removed Debounce)
+  // Q4: Name
   nameInput.addEventListener('input', () => {
     answers[3] = (nameInput.value.trim() !== '');
     toggleQuestionBlock(4, answers[3]);
@@ -636,7 +689,7 @@ function initializeNewbuildForm() {
     updateContinueButton();
   });
 
-  // Q5: Email (Removed Debounce)
+  // Q5: Email
   emailInput.addEventListener('input', () => {
     const val = emailInput.value.trim();
     answers[4] = (val !== '' && isValidEmail(val));
@@ -649,7 +702,7 @@ function initializeNewbuildForm() {
     updateContinueButton();
   });
 
-  // Q6: Company (Removed Debounce)
+  // Q6: Company
   companyInput.addEventListener('input', () => {
     const val = companyInput.value.trim();
     answers[5] = (val !== '');
@@ -660,7 +713,7 @@ function initializeNewbuildForm() {
     updateContinueButton();
   });
 
-  // Q7: Website (Removed Debounce)
+  // Q7: Website
   websiteInput.addEventListener('input', () => {
     answers[6] = isEmptyOrValidURL(websiteInput.value);
     updateContinueButton();
@@ -691,13 +744,37 @@ function initializeNewbuildForm() {
     const joined = selectedLabels.join(', ');
     formData.set('Purpose-of-Website', joined);
 
-    // Append UTM parameters if needed
+    // Append UTM parameters (if needed)
     appendUtmParams(formData);
 
-    fetch("https://services.leadconnectorhq.com/hooks/ebN44ZZDqKXacptD3Rm7/webhook-trigger/BiZAvMuK6VH4yzD3zjBQ", {
-      method: "POST",
-      body: formData
-    })
+    // [NEW] Capture fbclid/fbc
+    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
+    if (fbclid) {
+      formData.set('fbclid', fbclid);
+    }
+    const fbcCookie = getCookie('_fbc');
+    if (fbcCookie) {
+      formData.set('fbc', fbcCookie);
+    }
+
+    // Clone so we can send to both URLs
+    const formDataForCRM = cloneFormData(formData);
+    const formDataForMake = cloneFormData(formData);
+
+    // Send to your CRM and to Make.com in parallel
+    const leadConnectorURL = "https://services.leadconnectorhq.com/hooks/ebN44ZZDqKXacptD3Rm7/webhook-trigger/BiZAvMuK6VH4yzD3zjBQ";
+    const makeWebhookURL = "https://hook.eu2.make.com/l70awej7ur2hckn9nr1hk07dsbxp7ebk";
+
+    Promise.all([
+      fetch(leadConnectorURL, {
+        method: "POST",
+        body: formDataForCRM
+      }),
+      fetch(makeWebhookURL, {
+        method: "POST",
+        body: formDataForMake
+      })
+    ])
     .then(() => {
       window.location.href = "book/new-build";
     })
